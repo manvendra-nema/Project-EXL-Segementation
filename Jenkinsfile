@@ -5,7 +5,7 @@ pipeline {
         DOCKER_TAG = "latest"
         REPO_URL = "https://github.com/manvendra-nema/Project-EXL-Segementation.git"
         MINIKUBE_PATH ="\"C:\\Program Files\\Kubernetes\\Minikube\\minikube.exe\""  // Use the absolute path of Minikube
-        
+        PATH = "C:\\Windows\\System32;${env.PATH}"  // Ensure cmd.exe is in PATH
 
     }
 
@@ -23,7 +23,7 @@ pipeline {
         script {
             try {
                  echo 'running unittest'
-                bat '"C:\\Users\\Manvendra Nema\\anaconda3\\envs\\streamlit\\python.exe" test_all.py'
+                bat '"C:\\Users\\Manvendra Nema\\anaconda3\\envs\\vercil\\python.exe" test_all.py'
             } catch (Exception e) {
                 echo "Tests failed: ${e.message}"
                 // Optionally: Mark the build as unstable or perform other actions
