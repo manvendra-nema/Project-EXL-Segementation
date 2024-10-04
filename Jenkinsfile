@@ -2,7 +2,7 @@ pipeline {
     environment {
         DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials')  
         DOCKER_IMAGE = "maven0/my-streamlit-app"
-        DOCKER_TAG = "latest"
+        DOCKER_TAG = "new"
         REPO_URL = "https://github.com/manvendra-nema/Project-EXL-Segementation.git"
         MINIKUBE_PATH = "C:\\Program Files\\Kubernetes\\Minikube\\minikube.exe"
         PATH = "C:\\Windows\\System32;C:\\Program Files\\Docker\\Docker\\resources\\bin;${env.PATH}"
