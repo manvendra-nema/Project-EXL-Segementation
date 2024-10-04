@@ -1,10 +1,11 @@
 pipeline {
     environment {
         DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials')  // Docker Hub credentials stored in Jenkins
-        DOCKER_IMAGE = "ujjwalk20/cust_seg_app"
+        DOCKER_IMAGE = "maven0/my-streamlit-app"
         DOCKER_TAG = "latest"
-        REPO_URL = "https://github.com/ujjwalk20/Customer_Segmentation.git"
+        REPO_URL = "https://github.com/manvendra-nema/Project-EXL-Segementation.git"
         MINIKUBE_PATH ="\"C:\\Program Files\\Kubernetes\\Minikube\\minikube.exe\""  // Use the absolute path of Minikube
+        
 
     }
 
@@ -22,7 +23,7 @@ pipeline {
         script {
             try {
                  echo 'running unittest'
-                bat '"C:\\Users\\ujjwa\\AppData\\Local\\Programs\\Python\\Python311\\python.exe" test_all.py'
+                bat '"C:\\Users\\Manvendra Nema\\anaconda3\\envs\\streamlit\\python.exe" test_all.py'
             } catch (Exception e) {
                 echo "Tests failed: ${e.message}"
                 // Optionally: Mark the build as unstable or perform other actions
