@@ -63,28 +63,28 @@ pipeline {
             }
         }
 
-        stage('Deploy to Kubernetes') {
-            steps {
-                script {
-                    try {
-                        echo "Deploying to Kubernetes using Minikube..."
-                        kubernetesDeploy(
-                            configs: 'streamlit-deployment.yaml',  
-                            kubeconfigId: 'minikube-kubeconfig',    
-                            enableConfigSubstitution: true
-                        )
+        // stage('Deploy to Kubernetes') {
+        //     steps {
+        //         script {
+        //             try {
+        //                 echo "Deploying to Kubernetes using Minikube..."
+        //                 kubernetesDeploy(
+        //                     configs: 'streamlit-deployment.yaml',  
+        //                     kubeconfigId: 'minikube-kubeconfig',    
+        //                     enableConfigSubstitution: true
+        //                 )
                         
-                        kubernetesDeploy(
-                            configs: 'streamlit-service.yaml',  
-                            kubeconfigId: 'minikube-kubeconfig',
-                            enableConfigSubstitution: true
-                        )
-                    } catch (Exception e) {
-                        echo "Kubernetes deployment failed: ${e.message}"
-                        error "Stopping the pipeline due to deployment failures."
-                    }
-                }
-            }
-        }
+        //                 kubernetesDeploy(
+        //                     configs: 'streamlit-service.yaml',  
+        //                     kubeconfigId: 'minikube-kubeconfig',
+        //                     enableConfigSubstitution: true
+        //                 )
+        //             } catch (Exception e) {
+        //                 echo "Kubernetes deployment failed: ${e.message}"
+        //                 error "Stopping the pipeline due to deployment failures."
+        //             }
+        //         }
+        //     }
+        // }
     }
 }
