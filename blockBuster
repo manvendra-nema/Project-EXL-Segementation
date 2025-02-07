@@ -1,7 +1,6 @@
-
 import json
 
-class JSONComparator:
+class JsonComparator:
     def __init__(self):
         self.summary = {
             "correct": {},
@@ -11,49 +10,21 @@ class JSONComparator:
             "not_available": {}
         }
 
-    def is_empty(self, val):
-        """Returns True if the value is considered empty (a string or list of length 0)."""
-        return isinstance(val, (str, list)) and len(val) == 0
-
     def update_summary(self, change_type, path):
-        """Update the summary for a given change type using the full key path."""
+        # Join the full path (all parent keys) using " -> " for tracking.
         full_path = " -> ".join(path) if path else "root"
         self.summary[change_type].setdefault(full_path, 0)
         self.summary[change_type][full_path] += 1
 
-    def compare_and_update(self, val1, val2, path):
-        """
-        Compares two primitive values (or strings/lists) and updates the summary based on:
-          - correct: if they are identical and non-empty,
-          - added: if val1 is empty and val2 is non-empty,
-          - deleted: if val1 is non-empty and val2 is empty,
-          - edited: otherwise.
-        """
-        if val1 == val2:
-            if not (isinstance(val1, (str, list)) and self.is_empty(val1)):
-                self.update_summary("correct", path)
-        else:
-            if isinstance(val1, (str, list)) and self.is_empty(val1) and \
-               not (isinstance(val2, (str, list)) and self.is_empty(val2)):
-                self.update_summary("added", path)
-            elif not (isinstance(val1, (str, list)) and self.is_empty(val1)) and \
-                 (isinstance(val2, (str, list)) and self.is_empty(val2)):
-                self.update_summary("deleted", path)
-            else:
-                self.update_summary("edited", path)
+    def is_empty(self, val):
+        # We consider only strings and lists for emptiness.
+        return isinstance(val, (str, list)) and len(val) == 0
 
-    def compare(self, json1, json2, level_path=None):
-        """
-        Recursively compares two JSON objects (dictionaries) and updates the summary.
-        
-        Parameters:
-            json1, json2: The JSON (dict) objects to compare.
-            level_path: The current path (list of keys) used for tracking the full hierarchy.
-        """
+    def compare_json(self, json1, json2, level_path=None):
         if level_path is None:
             level_path = []
 
-        # Process every key present in either JSON.
+        # Process each key present in either JSON object.
         all_keys = set(json1.keys()).union(set(json2.keys()))
         for key in all_keys:
             current_path = level_path + [key]
@@ -64,74 +35,66 @@ class JSONComparator:
                 val1 = json1[key]
                 val2 = json2[key]
 
-                # If both values are empty (for strings or lists), mark as not_available.
-                if (isinstance(val1, (str, list)) and self.is_empty(val1)) and \
-                   (isinstance(val2, (str, list)) and self.is_empty(val2)):
+                # If both values are empty (for strings or lists), record as "not_available" and skip further processing.
+                if isinstance(val1, (str, list)) and self.is_empty(val1) and \
+                        isinstance(val2, (str, list)) and self.is_empty(val2):
                     self.update_summary("not_available", current_path)
                     continue
 
-                # If both values are dictionaries, recurse.
+                # If both values are dictionaries, compare recursively.
                 if isinstance(val1, dict) and isinstance(val2, dict):
-                    self.compare(val1, val2, current_path)
+                    self.compare_json(val1, val2, current_path)
 
-                # If both values are lists, compare element-by-element.
+                # If both values are lists, handle based on our new rules.
                 elif isinstance(val1, list) and isinstance(val2, list):
-                    if len(val1) == len(val2):
-                        # Compare common indices.
-                        for i, (item1, item2) in enumerate(zip(val1, val2)):
-                            item_path = current_path + [f"[{i}]"]
-                            if isinstance(item1, dict) and isinstance(item2, dict):
-                                self.compare(item1, item2, item_path)
-                            elif isinstance(item1, list) and isinstance(item2, list):
-                                # If both sublists have equal length, compare them element-wise.
-                                if len(item1) == len(item2):
-                                    for j, (sub1, sub2) in enumerate(zip(item1, item2)):
-                                        sub_path = item_path + [f"[{j}]"]
-                                        self.compare_and_update(sub1, sub2, sub_path)
-                                else:
-                                    # Otherwise, mark the whole sublist as edited.
-                                    self.update_summary("edited", item_path)
-                            else:
-                                self.compare_and_update(item1, item2, item_path)
-                    else:
-                        # Compare common indices.
-                        min_len = min(len(val1), len(val2))
-                        for i in range(min_len):
-                            item_path = current_path + [f"[{i}]"]
-                            item1 = val1[i]
-                            item2 = val2[i]
-                            if isinstance(item1, dict) and isinstance(item2, dict):
-                                self.compare(item1, item2, item_path)
-                            elif isinstance(item1, list) and isinstance(item2, list):
-                                # Recurse into sublists if lengths match; otherwise, mark as edited.
-                                if len(item1) == len(item2):
-                                    for j, (sub1, sub2) in enumerate(zip(item1, item2)):
-                                        sub_path = item_path + [f"[{j}]"]
-                                        self.compare_and_update(sub1, sub2, sub_path)
-                                else:
-                                    self.update_summary("edited", item_path)
-                            else:
-                                self.compare_and_update(item1, item2, item_path)
-                        # For extra items in json1, mark them as deleted.
-                        for i in range(min_len, len(val1)):
-                            item_path = current_path + [f"[{i}]"]
-                            self.update_summary("deleted", item_path)
-                        # For extra items in json2, mark them as added.
-                        for i in range(min_len, len(val2)):
-                            item_path = current_path + [f"[{i}]"]
-                            self.update_summary("added", item_path)
+                    self.compare_lists(val1, val2, current_path)
 
-                # For primitive types.
+                # For all other (primitive) types.
                 else:
-                    self.compare_and_update(val1, val2, current_path)
+                    self.compare_values(val1, val2, current_path)
+
             else:
-                # Key exists only in one of the JSON objects.
+                # Key exists only in one JSON.
                 if in_json1:
                     self.update_summary("deleted", current_path)
                 else:
                     self.update_summary("added", current_path)
         return self.summary
 
-    def get_summary(self):
-        """Returns the summary of changes."""
-        return self.summary
+    def compare_values(self, val1, val2, path):
+        # Case for primitive values (strings, numbers, etc.)
+        if val1 == val2:
+            if not (isinstance(val1, (str, list)) and self.is_empty(val1)):
+                self.update_summary("correct", path)
+        else:
+            # Handle added, deleted or edited cases for values.
+            if isinstance(val1, (str, list)) and self.is_empty(val1) and \
+               not (isinstance(val2, (str, list)) and self.is_empty(val2)):
+                self.update_summary("added", path)
+            elif not (isinstance(val1, (str, list)) and self.is_empty(val1)) and \
+                 isinstance(val2, (str, list)) and self.is_empty(val2):
+                self.update_summary("deleted", path)
+            else:
+                self.update_summary("edited", path)
+
+    def compare_lists(self, list1, list2, path):
+        max_len = max(len(list1), len(list2))
+        for i in range(max_len):
+            sub_path = path + [f"[{i}]"]
+
+            # Handle missing items for different lengths
+            if i >= len(list1):
+                self.update_summary("added", sub_path)
+                continue
+            elif i >= len(list2):
+                self.update_summary("deleted", sub_path)
+                continue
+
+            sub1 = list1[i]
+            sub2 = list2[i]
+
+            # If both items are lists, recursively compare the items
+            if isinstance(sub1, list) and isinstance(sub2, list):
+                self.compare_lists(sub1, sub2, sub_path)
+            else:
+                self.compare_values(sub1, sub2, sub_path)
