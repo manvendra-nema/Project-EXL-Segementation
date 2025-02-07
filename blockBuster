@@ -3,14 +3,14 @@ import json
 def compare_json(json1, json2, level_path=None, summary=None):
     """
     Recursively compares two JSON objects at every level.
-    
+
     Classification rules:
       - "correct": keys whose values are identical (and non-empty) in both JSONs.
       - "edited": keys whose non-empty values differ.
       - "added": keys that changed from empty to non-empty or appear only in JSON2.
       - "deleted": keys that changed from non-empty to empty or appear only in JSON1.
       - "not_available": keys where the value is empty ("" or []) in both JSONs.
-    
+
     The summary dictionary uses keys in the form "parent1 -> parent2" (or "root" when not available).
     """
     if summary is None:
@@ -37,7 +37,6 @@ def compare_json(json1, json2, level_path=None, summary=None):
         in_json1 = key in json1
         in_json2 = key in json2
 
-        # If the key exists in both JSON objects:
         if in_json1 and in_json2:
             val1 = json1[key]
             val2 = json2[key]
@@ -50,32 +49,32 @@ def compare_json(json1, json2, level_path=None, summary=None):
             if isinstance(val1, dict) and isinstance(val2, dict):
                 compare_json(val1, val2, current_path, summary)
 
-            # If both values are lists:
+            # If both values are lists, check element-wise.
             elif isinstance(val1, list) and isinstance(val2, list):
                 if val1 == val2:
                     update_summary("correct", current_path)
                 else:
                     # Convert list items to a comparable form.
-                    # (If an item is a dict, serialize it to a JSON string with sorted keys.)
+                    # If an item is a dict or a list, serialize it to a JSON string.
                     set1 = {
-                        json.dumps(item, sort_keys=True) if isinstance(item, dict) else item
+                        json.dumps(item, sort_keys=True) if isinstance(item, (dict, list)) else item
                         for item in val1
                     }
                     set2 = {
-                        json.dumps(item, sort_keys=True) if isinstance(item, dict) else item
+                        json.dumps(item, sort_keys=True) if isinstance(item, (dict, list)) else item
                         for item in val2
                     }
-                    # Items present in json1 but not in json2 are treated as deletions.
+                    # Items in json1 but not in json2 are deletions.
                     for _ in range(len(set1 - set2)):
                         update_summary("deleted", current_path)
-                    # Items present in json2 but not in json1 are treated as additions.
+                    # Items in json2 but not in json1 are additions.
                     for _ in range(len(set2 - set1)):
                         update_summary("added", current_path)
 
             # For primitive types (strings, numbers, etc.)
             else:
                 if val1 == val2:
-                    # Only count as correct if the value is non-empty.
+                    # Count as correct only if the value is non-empty.
                     if not (isinstance(val1, (str, list)) and is_empty(val1)):
                         update_summary("correct", current_path)
                 else:
@@ -86,8 +85,6 @@ def compare_json(json1, json2, level_path=None, summary=None):
                         update_summary("deleted", current_path)
                     else:
                         update_summary("edited", current_path)
-
-        # If the key exists only in one JSON, classify it as added or deleted.
         else:
             if in_json1:
                 update_summary("deleted", current_path)
@@ -103,7 +100,7 @@ json1 = {
         "city": "",
         "zip": "10001"
     },
-    "phones": [{"number": "12345","alpha":"3"}, {"number": ""}],
+    "phones": [{"number": "12345"}, {"number": ""}],
     "emails": []  # Empty list: should be "not_available"
 }
 
@@ -113,7 +110,7 @@ json2 = {
     "address": {
         "city": "Los Angeles"  # Changed from empty to a value: "added"
     },
-    "phones": [{"number": "12345","alpha":"66"}],  # One element removed: "deleted"
+    "phones": [{"number": "12345"}],  # One element removed: "deleted"
     "emails": []  # Still empty: should be "not_available"
 }
 
