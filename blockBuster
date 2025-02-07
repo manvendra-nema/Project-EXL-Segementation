@@ -1,70 +1,121 @@
-from deepdiff import DeepDiff
 import json
+
+def compare_json(json1, json2, level_path=None, summary=None):
+    """
+    Recursively compares two JSON objects at every level.
+    
+    Classification rules:
+      - "correct": keys whose values are identical (and non-empty) in both JSONs.
+      - "edited": keys whose non-empty values differ.
+      - "added": keys that changed from empty to non-empty or appear only in JSON2.
+      - "deleted": keys that changed from non-empty to empty or appear only in JSON1.
+      - "not_available": keys where the value is empty ("" or []) in both JSONs.
+    
+    The summary dictionary uses keys in the form "parent1 -> parent2" (or "root" when not available).
+    """
+    if summary is None:
+        summary = {"correct": {}, "edited": {}, "added": {}, "deleted": {}, "not_available": {}}
+    if level_path is None:
+        level_path = []
+
+    def update_summary(change_type, path):
+        # Use the first two elements of the path as parent labels (or "root" if missing)
+        parent1 = path[0] if len(path) > 0 else "root"
+        parent2 = path[1] if len(path) > 1 else "root"
+        key_path = f"{parent1} -> {parent2}"
+        summary[change_type].setdefault(key_path, 0)
+        summary[change_type][key_path] += 1
+
+    # Helper: consider only strings and lists for "emptiness"
+    def is_empty(val):
+        return isinstance(val, (str, list)) and len(val) == 0
+
+    # Process each key present in either JSON object
+    all_keys = set(json1.keys()).union(set(json2.keys()))
+    for key in all_keys:
+        current_path = level_path + [key]
+        in_json1 = key in json1
+        in_json2 = key in json2
+
+        # If the key exists in both JSON objects:
+        if in_json1 and in_json2:
+            val1 = json1[key]
+            val2 = json2[key]
+            # If both values are empty (only checking strings and lists), classify as not_available and skip further processing.
+            if (isinstance(val1, (str, list)) and is_empty(val1)) and (isinstance(val2, (str, list)) and is_empty(val2)):
+                update_summary("not_available", current_path)
+                continue
+
+            # If both values are dictionaries, compare recursively.
+            if isinstance(val1, dict) and isinstance(val2, dict):
+                compare_json(val1, val2, current_path, summary)
+
+            # If both values are lists:
+            elif isinstance(val1, list) and isinstance(val2, list):
+                if val1 == val2:
+                    update_summary("correct", current_path)
+                else:
+                    # Convert list items to a comparable form.
+                    # (If an item is a dict, serialize it to a JSON string with sorted keys.)
+                    set1 = {
+                        json.dumps(item, sort_keys=True) if isinstance(item, dict) else item
+                        for item in val1
+                    }
+                    set2 = {
+                        json.dumps(item, sort_keys=True) if isinstance(item, dict) else item
+                        for item in val2
+                    }
+                    # Items present in json1 but not in json2 are treated as deletions.
+                    for _ in range(len(set1 - set2)):
+                        update_summary("deleted", current_path)
+                    # Items present in json2 but not in json1 are treated as additions.
+                    for _ in range(len(set2 - set1)):
+                        update_summary("added", current_path)
+
+            # For primitive types (strings, numbers, etc.)
+            else:
+                if val1 == val2:
+                    # Only count as correct if the value is non-empty.
+                    if not (isinstance(val1, (str, list)) and is_empty(val1)):
+                        update_summary("correct", current_path)
+                else:
+                    # Determine if the change is from empty to non-empty (or vice versa) or just a value edit.
+                    if isinstance(val1, (str, list)) and is_empty(val1) and not (isinstance(val2, (str, list)) and is_empty(val2)):
+                        update_summary("added", current_path)
+                    elif not (isinstance(val1, (str, list)) and is_empty(val1)) and isinstance(val2, (str, list)) and is_empty(val2):
+                        update_summary("deleted", current_path)
+                    else:
+                        update_summary("edited", current_path)
+
+        # If the key exists only in one JSON, classify it as added or deleted.
+        else:
+            if in_json1:
+                update_summary("deleted", current_path)
+            else:
+                update_summary("added", current_path)
+    return summary
 
 # Example JSON objects
 json1 = {
     "name": "John",
     "age": 30,
     "address": {
-        "city": "New York",
+        "city": "",
         "zip": "10001"
     },
-    "phones": ["12345", "67890"]
+    "phones": [{"number": "12345","alpha":"3"}, {"number": ""}],
+    "emails": []  # Empty list: should be "not_available"
 }
 
 json2 = {
     "name": "John",
     "age": 31,
     "address": {
-        "city": "Los Angeles",
-        "state": "CA"
+        "city": "Los Angeles"  # Changed from empty to a value: "added"
     },
-    "phones": ["12345", "99999"],
-    "email": "john@example.com"
+    "phones": [{"number": "12345","alpha":"66"}],  # One element removed: "deleted"
+    "emails": []  # Still empty: should be "not_available"
 }
 
-# Compare JSON objects
-diff = DeepDiff(json1, json2, ignore_order=True)
-
-# Initialize storage for changes
-correct = set()
-edited = set()
-added = set()
-deleted = set()
-
-# Function to extract Level 1 and Level 2 keys
-def extract_keys(path):
-    keys = path.replace("root", "").strip("[]").replace("'", "").split("[")
-    return keys[:2] if len(keys) > 1 else (keys[0], None)
-
-# Process differences
-for key in diff:
-    for path in diff[key]:
-        level1, level2 = extract_keys(path)
-        if key in ["values_changed", "iterable_item_removed", "iterable_item_added"]:
-            edited.add((level1, level2))
-        elif key == "dictionary_item_added":
-            added.add((level1, level2))
-        elif key == "dictionary_item_removed":
-            deleted.add((level1, level2))
-
-# Count unchanged keys
-all_keys = set(json1.keys()).union(set(json2.keys()))
-correct = {(k, None) for k in all_keys - {x[0] for x in edited | added | deleted}}
-
-# Prepare output
-summary = {
-    "correct": len(correct),
-    "edited": len(edited),
-    "added": len(added),
-    "deleted": len(deleted),
-    "details": {
-        "correct": list(correct),
-        "edited": list(edited),
-        "added": list(added),
-        "deleted": list(deleted),
-    }
-}
-
-# Print formatted output
-print(json.dumps(summary, indent=4))
+result = compare_json(json1, json2)
+print(json.dumps(result, indent=4))
