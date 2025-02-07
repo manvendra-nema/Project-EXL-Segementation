@@ -1,0 +1,70 @@
+from deepdiff import DeepDiff
+import json
+
+# Example JSON objects
+json1 = {
+    "name": "John",
+    "age": 30,
+    "address": {
+        "city": "New York",
+        "zip": "10001"
+    },
+    "phones": ["12345", "67890"]
+}
+
+json2 = {
+    "name": "John",
+    "age": 31,
+    "address": {
+        "city": "Los Angeles",
+        "state": "CA"
+    },
+    "phones": ["12345", "99999"],
+    "email": "john@example.com"
+}
+
+# Compare JSON objects
+diff = DeepDiff(json1, json2, ignore_order=True)
+
+# Initialize storage for changes
+correct = set()
+edited = set()
+added = set()
+deleted = set()
+
+# Function to extract Level 1 and Level 2 keys
+def extract_keys(path):
+    keys = path.replace("root", "").strip("[]").replace("'", "").split("[")
+    return keys[:2] if len(keys) > 1 else (keys[0], None)
+
+# Process differences
+for key in diff:
+    for path in diff[key]:
+        level1, level2 = extract_keys(path)
+        if key in ["values_changed", "iterable_item_removed", "iterable_item_added"]:
+            edited.add((level1, level2))
+        elif key == "dictionary_item_added":
+            added.add((level1, level2))
+        elif key == "dictionary_item_removed":
+            deleted.add((level1, level2))
+
+# Count unchanged keys
+all_keys = set(json1.keys()).union(set(json2.keys()))
+correct = {(k, None) for k in all_keys - {x[0] for x in edited | added | deleted}}
+
+# Prepare output
+summary = {
+    "correct": len(correct),
+    "edited": len(edited),
+    "added": len(added),
+    "deleted": len(deleted),
+    "details": {
+        "correct": list(correct),
+        "edited": list(edited),
+        "added": list(added),
+        "deleted": list(deleted),
+    }
+}
+
+# Print formatted output
+print(json.dumps(summary, indent=4))
