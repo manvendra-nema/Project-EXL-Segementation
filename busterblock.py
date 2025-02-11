@@ -1,12 +1,13 @@
 import re
 from collections import defaultdict
 
-def usecase_adaptor( data, delimiter):
+def usecase_adaptor(self, data, delimiter):
     """
     Adapts the given data by cleaning and reformatting the keys based on the specified delimiter.
-    If two cleaned keys are the same, their values are summed instead of creating duplicates.
-    """
 
+    The input data where each key is a category and the value is a dictionary of entries.
+    The delimiter to use for joining the cleaned key parts.
+    """
     def clean_key(key):
         index_removed = re.sub(r" -> \[\d+\]", "", key)
         common_substring_removed = re.sub("modules -> output -> referral -> ", "", index_removed)
@@ -15,12 +16,19 @@ def usecase_adaptor( data, delimiter):
     cleaned_data = {}
 
     for category, entries in data.items():
-        merged_entries = defaultdict(int)  # Store merged values
+        key_count = defaultdict(int)  # Track occurrences of each cleaned key
+        cleaned_entries = {}
 
         for k, v in entries.items():
             new_key = clean_key(k)
-            merged_entries[new_key] += v  # Increase count instead of creating duplicate keys
+            key_count[new_key] += 1
 
-        cleaned_data[category] = dict(merged_entries)  # Convert back to a normal dictionary
+            # If key already exists, append a counter to differentiate
+            if key_count[new_key] > 1:
+                new_key = f"{new_key}_{key_count[new_key]}"
+
+            cleaned_entries[new_key] = v
+
+        cleaned_data[category] = cleaned_entries
 
     return cleaned_data
