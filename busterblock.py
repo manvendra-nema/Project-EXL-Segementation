@@ -1,18 +1,26 @@
-def remove_indices(data):
+import re
+from collections import defaultdict
+
+def usecase_adaptor( data, delimiter):
     """
-    Recursively removes numeric indices from nested dictionaries and lists.
+    Adapts the given data by cleaning and reformatting the keys based on the specified delimiter.
+    If two cleaned keys are the same, their values are summed instead of creating duplicates.
     """
-    if isinstance(data, dict):
-        new_dict = {}
-        for key, value in data.items():
-            if isinstance(value, dict) or isinstance(value, list):
-                value = remove_indices(value)
-            # If the key is numeric (index), remove it
-            if isinstance(key, str) and key.isdigit():
-                continue
-            new_dict[key] = value
-        return new_dict
-    elif isinstance(data, list):
-        return [remove_indices(item) for item in data]
-    else:
-        return data
+
+    def clean_key(key):
+        index_removed = re.sub(r" -> \[\d+\]", "", key)
+        common_substring_removed = re.sub("modules -> output -> referral -> ", "", index_removed)
+        return delimiter.join(common_substring_removed.split(" -> "))
+
+    cleaned_data = {}
+
+    for category, entries in data.items():
+        merged_entries = defaultdict(int)  # Store merged values
+
+        for k, v in entries.items():
+            new_key = clean_key(k)
+            merged_entries[new_key] += v  # Increase count instead of creating duplicate keys
+
+        cleaned_data[category] = dict(merged_entries)  # Convert back to a normal dictionary
+
+    return cleaned_data
